@@ -28,6 +28,7 @@ import {AggregatorV3Interface} from "../node_modules/@chainlink/contracts/src/v0
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {DecentralizedStableCoin} from "./DecentralizedStableCoin.sol";
+import {OracleLib} from "./libraries/OracleLib.sol";
 
 /*
  * @title DSCEngine
@@ -59,6 +60,8 @@ contract DSCEngine is ReentrancyGuard {
     error DSCEngine_HealthFactorOk();
     error DSCEngine_HealthFactorNotImproved();
 
+    using OracleLib for AggregatorV3Interface;
+
     uint256 private constant ADDITIONAL_FEED_PRECISION = 1e10;
     uint256 private constant PRECISION = 1e18;
     uint256 private constant LIQUIDATION_THRESHOLD = 50; // 200% overcollateralised
@@ -67,8 +70,7 @@ contract DSCEngine is ReentrancyGuard {
     uint256 private constant LIQUIDATION_BONUS = 10;
 
     mapping(address tokenCollateral => address priceFeed) private s_priceFeeds;
-    mapping(address user => mapping(address token => uint256 amoount))
-        private s_CollateralDeposited;
+    mapping(address user => mapping(address token => uint256 amoount)) private s_CollateralDeposited;
     mapping(address user => uint256 amountDSC) s_DSCMinted;
 
     address[] private s_collateralTokens;
@@ -326,7 +328,7 @@ contract DSCEngine is ReentrancyGuard {
         AggregatorV3Interface priceFeed = AggregatorV3Interface(
             s_priceFeeds[token]
         );
-        (, int256 price, , , ) = priceFeed.latestRoundData();
+        (, int256 price, , , ) = priceFeed.staleCheckLatestRoundData();
 
         return
             (usdAmountInWei * PRECISION) /
@@ -350,7 +352,7 @@ contract DSCEngine is ReentrancyGuard {
         AggregatorV3Interface priceFeed = AggregatorV3Interface(
             s_priceFeeds[token]
         );
-        (, int256 price, , , ) = priceFeed.latestRoundData();
+        (, int256 price, , , ) = priceFeed.staleCheckLatestRoundData();
 
         return
             ((uint256(price) * ADDITIONAL_FEED_PRECISION) * amount) / PRECISION;
@@ -409,5 +411,9 @@ contract DSCEngine is ReentrancyGuard {
 
     function getHealthFactor(address user) external view returns (uint256) {
         return _healthFactor(user);
+    }
+
+    function getCollateralBalanceOfUser(address user, address token) external view returns(uint256) {
+        return s_CollateralDeposited[user][token];
     }
 }
